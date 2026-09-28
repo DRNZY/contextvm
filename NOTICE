@@ -1,0 +1,19 @@
+ContextVM (Context Virtual Machine)
+Copyright 2026 Darnell Dijksteel and Contributors
+
+This product incorporates and synthesizes concepts, designs, and code derived from:
+
+1. Headroom
+   Copyright 2026 Headroom Labs Inc.
+   Licensed under the Apache License, Version 2.0.
+   https://github.com/headroomlabs-ai/headroom
+
+2. Claude Code Contextual Memory Virtualisation (CMV)
+   Copyright 2025-2026 CMV Contributors
+   Licensed under the Apache License, Version 2.0.
+   https://github.com/CosmoNaught/claude-code-cmv
+
+3. Token-Trimmer
+   Copyright (c) 2026 Darnell Dijksteel
+   Licensed under the MIT License.
+   https://github.com/DRNZY/token-trimmer

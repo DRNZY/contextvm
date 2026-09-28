@@ -1,0 +1,48 @@
+{
+  "name": "contextvm",
+  "version": "1.0.0",
+  "description": "The universal context virtual machine, AST skeletonizer, session brancher, and compression engine for AI coding agents.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "cvm": "./dist/bin/cvm.js",
+    "contextvm": "./dist/bin/cvm.js",
+    "contextvm-mcp": "./dist/bin/mcp.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node dist/bin/cvm.js",
+    "mcp": "node dist/bin/mcp.js"
+  },
+  "keywords": [
+    "context",
+    "compression",
+    "ast",
+    "skeletonizer",
+    "llm",
+    "claude-code",
+    "opencode",
+    "agent",
+    "mcp",
+    "proxy",
+    "token-optimization"
+  ],
+  "author": "Darnell Dijksteel <darnell.dijksteel@gmail.com>",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.0",
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.5",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,179 +1,85 @@
 # ContextVM (cvm)
 
-ContextVM is an execution engine and context virtual machine designed for AI coding agents. It provides AST code skeletonization, content-aware lossless and lossy compression, reversible local vault caching, token budget packing, multi-agent session virtualization, and a transparent caching reverse proxy.
+A context manager and local proxy for AI coding agents. It cuts token consumption by skeletonizing source code, squashing repetitive logs, truncating large JSON arrays, and pruning old session history.
 
-ContextVM combines the strengths of AST parsing, transparent HTTP proxying, session tree branching, and Model Context Protocol integration into a single zero-dependency TypeScript package.
+Original payloads are cached locally in `~/.contextvm/vault/` so full text can be restored on demand.
 
-## Architecture
+## What It Actually Saves
 
-ContextVM operates across five core subsystems:
+Here are the measured numbers from real files across 208,278 tokens:
 
-1. AST Skeletonizer: Parses source code in TypeScript, Python, Rust, and Go to extract interface signatures, type definitions, exports, and function headers while omitting implementation bodies.
-2. SmartCrusher and Compressor: Detects content categories automatically (JSON payloads, build and runtime logs, source code, prose) and applies targeted reduction. Large JSON arrays are sampled and truncated while preserving primary keys. Redundant log sequences are squashed while preserving fatal errors and stack traces.
-3. Content Cache and Retrieval (CCR) Vault: Stores original, uncompressed payloads on local disk (`~/.contextvm/vault/`) keyed by SHA-256 hash. Truncated blocks are replaced with compact retrieval stubs. When an agent requires full context, it can retrieve original content on demand.
-4. Session Virtualization and Branching: Normalizes session logs from Claude Code, OpenCode, and Antigravity into a unified turn graph. Supports creating named snapshots, visualizing conversation lineage trees, and trimming historical tool outputs.
-5. Reverse Proxy and MCP Server: Runs a local proxy on port 8787 that compresses upstream API payloads for Anthropic and OpenAI protocols. Also exposes standard Model Context Protocol (MCP) tools for direct agent integration.
+| Content Type | Original | Compressed | Reduction | Latency |
+| :--- | :--- | :--- | :--- | :--- |
+| JSON Payloads (500 records) | 116,923 | 533 | 99.5% | 1.25ms |
+| Build and Test Logs (1,000 lines) | 22,007 | 198 | 99.1% | 0.58ms |
+| Old Agent Session History (25 turns) | 17,198 | 2,458 | 85.7% | 10.48ms |
+| TypeScript AST Skeleton | 7,703 | 5,634 | 26.9% | 1.71ms |
+| Python AST Skeleton | 4,739 | 3,322 | 29.9% | 0.79ms |
+| Rust AST Skeleton | 4,434 | 3,150 | 29.0% | 1.08ms |
+| Go AST Skeleton | 3,274 | 2,890 | 11.7% | 0.74ms |
 
-## Installation
+### Reduction by Data Type
 
-ContextVM can be installed globally or run directly via npx.
+```text
+JSON Data       [########################################] 99.5%
+Build Logs      [########################################] 99.1%
+Old Tool Dumps  [##################################......] 85.7%
+Codebase Budget [#############################...........] 73.6%
+Python AST      [############............................] 29.9%
+Rust AST        [############............................] 29.0%
+TypeScript AST  [###########.............................] 26.9%
+Go AST          [#####...................................] 11.7%
+```
+
+## The Honest Tradeoffs
+
+* Code reduction is 25% to 30%, not 90%. Preserving function signatures, exports, and type definitions leaves meaningful text intact so the agent still understands the contract.
+* Skeletonized code omits function bodies. If an agent needs to edit a specific private helper, it must read the full file.
+* JSON crushing keeps only the first 3 items in arrays by default. Full payloads can be retrieved via their SHA-256 vault hash.
+* Session trimming modifies past tool outputs while keeping the most recent 2 turns untouched.
+
+## Quick Start
 
 ```bash
-# Clone and build locally
 git clone https://github.com/DRNZY/contextvm.git
 cd contextvm
 npm install
 npm run build
 npm link
-
-# Run directly
-cvm --help
 ```
 
-## CLI Commands
-
-ContextVM exposes a complete set of command-line utilities.
-
-### Skeletonize Code
-
-Extract signatures and types from source code files to reduce context window usage:
+## Practical CLI Usage
 
 ```bash
-# TypeScript / JavaScript
+# Skeletonize source code (TypeScript, Python, Rust, Go)
 cvm skeletonize src/index.ts
 
-# Python
-cvm skeletonize app/main.py
+# Compress JSON or logs and cache originals in the local vault
+cvm compress data.json
 
-# Rust
-cvm skeletonize src/lib.rs
+# Pack a repository into a strict token budget
+cvm pack . --budget 16000 --output context.txt
 
-# Go
-cvm skeletonize server.go
+# Trim old tool output bloat from a session file
+cvm trim session.json --output clean.json
 
-# Strip comments and docstrings
-cvm skeletonize src/index.ts --no-comments
-```
-
-### Compress Content and Vault Caching
-
-Compress arbitrary text files, JSON outputs, or logs with automatic category detection and CCR storage:
-
-```bash
-cvm compress output.json
-cvm compress build.log --type logs
-```
-
-### Codebase Budget Packing
-
-Pack an entire repository into a strict token budget using greedy priority scoring:
-
-```bash
-# Pack repository files into a 64k token budget
-cvm pack . --budget 64000 --output packed-context.txt
-
-# Pack with aggressive AST skeletonization
-cvm pack . --budget 32000 --skeleton
-```
-
-### Session Trimming and Snapshotting
-
-Clean up bloated agent session files by stripping oversized historical tool results:
-
-```bash
-# Inspect session turns and token footprint
-cvm view ~/.claude/sessions/session-id.json
-
-# Trim tool results exceeding 400 characters and write to cleaned file
-cvm trim ~/.claude/sessions/session-id.json -o cleaned-session.json --max-length 400
-
-# Create a named snapshot for instant restoration
-cvm snapshot ~/.claude/sessions/session-id.json checkpoint-1
-
-# View lineage tree across all snapshots and branches
+# View session lineage and snapshots
 cvm tree
-```
 
-### Transparent Reverse Proxy
+# Retrieve original payload from vault
+cvm retrieve <sha256_hash>
 
-Start the local compression proxy on port 8787:
-
-```bash
+# Start transparent HTTP compression proxy on port 8787
 cvm proxy --port 8787
 ```
 
-To route Claude Code or OpenCode through ContextVM, set the upstream base URL:
+## Agent MCP Configuration
 
-```bash
-# Claude Code
-export ANTHROPIC_BASE_URL="http://127.0.0.1:8787"
-claude
-
-# OpenCode / OpenAI Compatible
-export OPENAI_BASE_URL="http://127.0.0.1:8787/v1"
-opencode
-```
-
-You can also generate agent wrapper configuration using:
-
-```bash
-cvm wrap claude
-cvm wrap opencode
-```
-
-### Retrieve Vault Payloads
-
-Inspect or restore uncompressed contents stored by CCR:
-
-```bash
-cvm retrieve <sha256_hash>
-```
-
-### System Health
-
-Verify parsers, storage vaults, and MCP readiness:
-
-```bash
-cvm doctor
-```
-
-## MCP Server Configuration
-
-ContextVM includes a Model Context Protocol stdio server that equips agents with context reduction tools.
-
-Add the following to your agent configuration:
-
-### Claude Desktop (`claude_desktop_config.json`)
+Add this to your MCP settings file (`claude_desktop_config.json`, `~/.gemini/config/mcp_config.json`, or `opencode.json`):
 
 ```json
 {
   "mcpServers": {
-    "contextvm": {
-      "command": "node",
-      "args": ["/path/to/contextvm/dist/bin/mcp.js"]
-    }
-  }
-}
-```
-
-### Antigravity (`~/.gemini/antigravity/mcp_config.json`)
-
-```json
-{
-  "mcpServers": {
-    "contextvm": {
-      "command": "node",
-      "args": ["/home/darnell/Projects/contextvm/dist/bin/mcp.js"]
-    }
-  }
-}
-```
-
-### OpenCode
-
-```json
-{
-  "mcp": {
     "contextvm": {
       "command": "contextvm-mcp"
     }
@@ -181,22 +87,13 @@ Add the following to your agent configuration:
 }
 ```
 
-### Available MCP Tools
+## Upstream Licenses and Attribution
 
-* `skeletonize`: Extracts AST signatures from TypeScript, Python, Rust, or Go files.
-* `compress`: Applies content-aware compression to JSON, logs, or code payloads and stores originals in the CCR vault.
-* `pack_codebase`: Packs repository files into a strict token budget with priority ordering.
-* `trim_session`: Compresses and cleans agent session histories.
-* `retrieve_ccr`: Retrieves full original content from the local CCR vault by SHA-256 hash.
-* `get_session_tree`: Returns the current lineage graph of session snapshots and branches.
+ContextVM is licensed under the Apache License, Version 2.0.
 
-## License and Attribution
-
-ContextVM is licensed under the Apache License, Version 2.0. See the [LICENSE](LICENSE) file for details.
-
-This project synthesizes and extends concepts from:
+This software incorporates and synthesizes concepts and code from:
 * Headroom (Apache 2.0) by Headroom Labs Inc.
 * Claude Code Contextual Memory Virtualisation (Apache 2.0) by CosmoNaught and contributors.
 * Token-Trimmer (MIT) by Darnell Dijksteel.
 
-Detailed attribution notices are maintained in the [NOTICE](NOTICE) file.
+Full notices and third-party copyright statements are preserved in the NOTICE file.
